@@ -1,5 +1,3 @@
-import type { IncomingHttpHeaders } from 'node:http';
-
 type ArkMode = 'responses' | 'chat';
 
 const arkBaseUrl = (process.env.ARK_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3').replace(/\/$/, '');
@@ -183,8 +181,7 @@ export function readBody(req: any): Promise<any> {
   });
 }
 
-export function getHeader(headers: IncomingHttpHeaders, key: string): string {
-  const v = headers[key.toLowerCase()];
+export function getHeader(headers: any, key: string): string {
+  const v = headers?.[key.toLowerCase()];
   return Array.isArray(v) ? String(v[0] || '') : String(v || '');
 }
-
