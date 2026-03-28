@@ -5,7 +5,7 @@ import { api } from '../services/api';
 import AvatarSheet from './sidebar/AvatarSheet';
 import SidebarGroupSection from './sidebar/SidebarGroupSection';
 import SidebarItemSheet from './sidebar/SidebarItemSheet';
-import type { EditMode, SidebarGroupKey, SidebarItem, UserProfile } from './sidebar/types';
+import type { EditMode, SidebarItem, UserProfile } from './sidebar/types';
 import { getInitials, safeItems, safeString } from './sidebar/types';
 
 export default function SidebarDrawer(props: { open: boolean; onClose: () => void; userId?: string }) {

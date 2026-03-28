@@ -1,4 +1,4 @@
-import { arkModelImage, arkModelText, arkModelVision, hasValidArkKey, json, readBody, stripBackticksAndTrim, arkGenerateText } from './_ark';
+import { arkModelImage, arkModelVision, hasValidArkKey, json, readBody, stripBackticksAndTrim, arkGenerateText } from './_ark';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return json(res, { error: 'Method not allowed' }, 405);
@@ -67,4 +67,3 @@ Note: No people, focus on the drink.`;
 
   return json(res, { imageUrl: String(imgUrl) });
 }
-

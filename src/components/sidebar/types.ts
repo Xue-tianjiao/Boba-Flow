@@ -29,23 +29,28 @@ export function safeString(value: unknown): string {
 export function safeItems(data: any): SidebarItem[] {
   if (!Array.isArray(data)) return [];
   return data
-    .map((x) => {
+    .map((x): SidebarItem | null => {
       const id = Number(x?.id);
-      const groupKey = x?.group_key === 'want' || x?.group_key === 'recommend' ? x.group_key : null;
+      const groupKey: SidebarGroupKey | null = x?.group_key === 'want' || x?.group_key === 'recommend' ? x.group_key : null;
       const title = safeString(x?.title).trim();
       if (!Number.isFinite(id) || !groupKey || !title) return null;
-      return {
+      const item: SidebarItem = {
         id,
         user_id: safeString(x?.user_id) || 'guest',
         group_key: groupKey,
         title,
-        note: safeString(x?.note),
-        image_url: safeString(x?.image_url),
         created_at: safeString(x?.created_at),
         updated_at: safeString(x?.updated_at)
       };
+
+      const note = safeString(x?.note).trim();
+      if (note) item.note = note;
+      const imageUrl = safeString(x?.image_url).trim();
+      if (imageUrl) item.image_url = imageUrl;
+
+      return item;
     })
-    .filter((v): v is SidebarItem => Boolean(v));
+    .filter((v): v is SidebarItem => v !== null);
 }
 
 export function getInitials(seed: string): string {
@@ -55,4 +60,3 @@ export function getInitials(seed: string): string {
   const b = parts[1]?.[0] || '';
   return (a + b).toUpperCase();
 }
-
