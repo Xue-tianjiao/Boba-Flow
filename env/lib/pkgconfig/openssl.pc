@@ -1,0 +1,9 @@
+prefix=/Users/joeyxue/Documents/trae_projects/drinkme/env
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: OpenSSL
+Description: Secure Sockets Layer and cryptography libraries and tools
+Version: 3.0.19
+Requires: libssl libcrypto
