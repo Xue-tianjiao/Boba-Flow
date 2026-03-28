@@ -1,4 +1,14 @@
 // Frontend API service
+async function readJsonResponse(res: Response): Promise<any> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: text };
+  }
+}
+
 export const api = {
   // Search for drinks
   searchDrinks: async (query: string) => {
@@ -161,7 +171,8 @@ export const api = {
   // Get drink logs
   getLogs: async () => {
     const res = await fetch('/api/logs');
-    return await res.json();
+    const data = await readJsonResponse(res);
+    return data ?? [];
   },
 
   // Add a new drink log
@@ -171,7 +182,8 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(log),
     });
-    return await res.json();
+    const data = await readJsonResponse(res);
+    return data ?? {};
   },
 
   // Update a drink log
@@ -181,7 +193,8 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(log),
     });
-    return await res.json();
+    const data = await readJsonResponse(res);
+    return data ?? {};
   },
 
   // Delete a drink log
@@ -192,7 +205,8 @@ export const api = {
     if (!res.ok) {
         throw new Error('Failed to delete log');
     }
-    return await res.json();
+    const data = await readJsonResponse(res);
+    return data ?? {};
   },
 
   // Onboarding
