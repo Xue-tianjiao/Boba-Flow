@@ -48,12 +48,13 @@ function normalizeTerm(raw: any, idx: number): InspirationTerm | null {
 }
 
 export default async function handler(req: any, res: any) {
-  if (req.method !== 'POST') return json(res, { error: 'Method not allowed' }, 405);
-  const body = req.body && typeof req.body === 'object' ? req.body : await readBody(req);
-  const query = typeof body?.query === 'string' ? body.query.trim() : '';
-  const limitRaw = body?.limit;
-  const limit = Number.isFinite(limitRaw) ? Number(limitRaw) : typeof limitRaw === 'string' ? Number(limitRaw) : 8;
-  const count = Math.max(1, Math.min(8, Number.isFinite(limit) ? Math.floor(limit) : 8));
+  try {
+    if (req.method !== 'POST') return json(res, { error: 'Method not allowed' }, 405);
+    const body = req.body && typeof req.body === 'object' ? req.body : await readBody(req);
+    const query = typeof body?.query === 'string' ? body.query.trim() : '';
+    const limitRaw = body?.limit;
+    const limit = Number.isFinite(limitRaw) ? Number(limitRaw) : typeof limitRaw === 'string' ? Number(limitRaw) : 8;
+    const count = Math.max(1, Math.min(8, Number.isFinite(limit) ? Math.floor(limit) : 8));
 
   if (!hasValidArkKey) {
     const today = new Date().toISOString().slice(0, 10);
@@ -69,12 +70,12 @@ export default async function handler(req: any, res: any) {
     ? `关键词：${query}\n请用 web_search 搜索并整理与该关键词相关的“饮品新品”词条，要求：\n- 输出最多 ${count} 条\n- 每一条都必须是近 3 个月内发布/上新（90 天内）\n- 每条包含：brand, product, summary(约18-28字), launch_date(YYYY-MM-DD), image_url(可空但禁止编造), weight(1-100), source_urls(2-3条)\n只返回 JSON 数组。`
     : `请用 web_search 搜索并整理“最近 3 个月内（90 天内）”中国市场热门饮品新品词条，要求：\n- 输出最多 ${count} 条\n- 覆盖多个品牌\n- 每条包含：brand, product, summary(约18-28字), launch_date(YYYY-MM-DD), image_url(可空但禁止编造), weight(1-100), source_urls(2-3条)\n只返回 JSON 数组。`;
 
-  let text = '';
-  try {
-    text = await arkGenerateText({ model: arkModelText, system, userParts: [{ type: 'input_text', text: userText }], tools: [{ type: 'web_search' }] });
-  } catch (e: any) {
-    return json(res, { error: e?.message ? String(e.message) : 'Failed' }, 500);
-  }
+    let text = '';
+    try {
+      text = await arkGenerateText({ model: arkModelText, system, userParts: [{ type: 'input_text', text: userText }], tools: [{ type: 'web_search' }] });
+    } catch (e: any) {
+      return json(res, { error: e?.message ? String(e.message) : 'Failed' }, 500);
+    }
 
   const raw = safeParseJsonArray(text);
   const ninetyDaysAgo = Date.now() - 1000 * 60 * 60 * 24 * 90;
@@ -93,5 +94,8 @@ export default async function handler(req: any, res: any) {
     })
     .slice(0, count);
 
-  return json(res, { terms: sorted, cacheHit: false });
+    return json(res, { terms: sorted, cacheHit: false });
+  } catch (e: any) {
+    return json(res, { error: e?.message ? String(e.message) : 'Explore failed' }, 500);
+  }
 }

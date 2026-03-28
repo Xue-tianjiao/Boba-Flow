@@ -1,11 +1,12 @@
 import { arkGenerateText, arkModelVision, hasValidArkKey, json, readBody, stripBackticksAndTrim } from '../lib/ark';
 
 export default async function handler(req: any, res: any) {
-  if (req.method !== 'POST') return json(res, { error: 'Method not allowed' }, 405);
-  const body = req.body && typeof req.body === 'object' ? req.body : await readBody(req);
-  const imageBase64 = typeof body?.imageBase64 === 'string' ? body.imageBase64 : '';
-  const mimeType = typeof body?.mimeType === 'string' ? body.mimeType : '';
-  if (!imageBase64) return json(res, { error: 'Image required' }, 400);
+  try {
+    if (req.method !== 'POST') return json(res, { error: 'Method not allowed' }, 405);
+    const body = req.body && typeof req.body === 'object' ? req.body : await readBody(req);
+    const imageBase64 = typeof body?.imageBase64 === 'string' ? body.imageBase64 : '';
+    const mimeType = typeof body?.mimeType === 'string' ? body.mimeType : '';
+    if (!imageBase64) return json(res, { error: 'Image required' }, 400);
 
   if (!hasValidArkKey) {
     return json(res, {
@@ -89,5 +90,8 @@ export default async function handler(req: any, res: any) {
     description: parsed?.description || '',
     thumb_bbox: parsed?.thumb_bbox || null
   };
-  return json(res, data);
+    return json(res, data);
+  } catch (e: any) {
+    return json(res, { error: e?.message ? String(e.message) : 'Identify failed' }, 500);
+  }
 }
