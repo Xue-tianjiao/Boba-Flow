@@ -1,4 +1,5 @@
 import { hasValidArkKey, json } from '../lib/ark.js';
+import { looksLikeJwt } from '../lib/supabaseAdmin.js';
 
 export default function handler(req: any, res: any) {
   try {
@@ -8,6 +9,7 @@ export default function handler(req: any, res: any) {
       hasArkKey: hasValidArkKey,
       hasSupabaseUrl: Boolean(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL),
       hasSupabaseServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+      supabaseServiceRoleKeyLooksJwt: looksLikeJwt(process.env.SUPABASE_SERVICE_ROLE_KEY || ''),
       hasArkBaseUrl: Boolean(process.env.ARK_BASE_URL),
       hasModelText: Boolean(process.env.ARK_MODEL_TEXT),
       hasModelVision: Boolean(process.env.ARK_MODEL_VISION),
