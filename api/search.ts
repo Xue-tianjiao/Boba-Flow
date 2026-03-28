@@ -1,4 +1,4 @@
-import { arkGenerateText, arkModelText, hasValidArkKey, json, readBody } from '../lib/ark';
+import { arkGenerateText, arkModelText, hasValidArkKey, json, readBody } from '../lib/ark.js';
 
 export default async function handler(req: any, res: any) {
   try {

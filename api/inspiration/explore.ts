@@ -1,4 +1,4 @@
-import { arkGenerateText, arkModelText, hasValidArkKey, json, readBody, stripBackticksAndTrim } from '../../lib/ark';
+import { arkGenerateText, arkModelText, hasValidArkKey, json, readBody, stripBackticksAndTrim } from '../../lib/ark.js';
 
 type InspirationTerm = {
   id: string;

@@ -1,4 +1,4 @@
-import { arkModelImage, arkModelVision, hasValidArkKey, json, readBody, stripBackticksAndTrim, arkGenerateText } from '../lib/ark';
+import { arkModelImage, arkModelVision, hasValidArkKey, json, readBody, stripBackticksAndTrim, arkGenerateText } from '../lib/ark.js';
 
 export default async function handler(req: any, res: any) {
   try {

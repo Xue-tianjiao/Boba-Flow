@@ -1,4 +1,4 @@
-import { arkGenerateChatText, arkModelText, hasValidArkKey, json, readBody, stripBackticksAndTrim, stripSimpleMarkdown } from '../../lib/ark';
+import { arkGenerateChatText, arkModelText, hasValidArkKey, json, readBody, stripBackticksAndTrim, stripSimpleMarkdown } from '../../lib/ark.js';
 
 export default async function handler(req: any, res: any) {
   try {
