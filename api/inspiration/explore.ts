@@ -1,4 +1,4 @@
-import { arkGenerateText, arkModelText, hasValidArkKey, json, readBody, stripBackticksAndTrim } from '../_ark';
+import { arkGenerateText, arkModelText, hasValidArkKey, json, readBody, stripBackticksAndTrim } from '../../lib/ark';
 
 type InspirationTerm = {
   id: string;
@@ -95,4 +95,3 @@ export default async function handler(req: any, res: any) {
 
   return json(res, { terms: sorted, cacheHit: false });
 }
-

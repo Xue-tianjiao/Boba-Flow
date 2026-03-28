@@ -1,4 +1,4 @@
-import { arkGenerateText, arkModelVision, hasValidArkKey, json, readBody, stripBackticksAndTrim } from './_ark';
+import { arkGenerateText, arkModelVision, hasValidArkKey, json, readBody, stripBackticksAndTrim } from '../lib/ark';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return json(res, { error: 'Method not allowed' }, 405);
@@ -91,4 +91,3 @@ export default async function handler(req: any, res: any) {
   };
   return json(res, data);
 }
-

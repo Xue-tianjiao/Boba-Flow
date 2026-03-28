@@ -1,4 +1,4 @@
-import { arkGenerateChatText, arkModelText, hasValidArkKey, json, readBody, stripBackticksAndTrim, stripSimpleMarkdown } from '../_ark';
+import { arkGenerateChatText, arkModelText, hasValidArkKey, json, readBody, stripBackticksAndTrim, stripSimpleMarkdown } from '../../lib/ark';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return json(res, { error: 'Method not allowed' }, 405);
