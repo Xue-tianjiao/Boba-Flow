@@ -629,18 +629,58 @@ function ScanView({ onSuccess }: { onSuccess: () => void }) {
         return canvas.toDataURL('image/png');
     };
 
+    const optimizeForUpload = async (dataUrl: string) => {
+        const maxSide = 1280;
+        const quality = 0.82;
+        const img = new Image();
+        img.src = dataUrl;
+        await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error('image load failed'));
+        });
+
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        if (!w || !h) return dataUrl;
+
+        const scale = Math.min(1, maxSide / Math.max(w, h));
+        const outW = Math.max(1, Math.round(w * scale));
+        const outH = Math.max(1, Math.round(h * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = outW;
+        canvas.height = outH;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return dataUrl;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, outW, outH);
+        return canvas.toDataURL('image/jpeg', quality);
+    };
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         const reader = new FileReader();
+        reader.onerror = () => {
+            alert('读取图片失败');
+        };
+        reader.onabort = () => {
+            alert('读取图片被中止');
+        };
         reader.onloadend = async () => {
             const base64 = reader.result as string;
-            setImage(base64);
             setAnalyzing(true);
-            
-            // Extract base64 data only
-            const base64Data = base64.split(',')[1];
+
+            let optimized = base64;
+            try {
+                optimized = await optimizeForUpload(base64);
+            } catch {
+            }
+
+            setImage(optimized);
+            const base64Data = optimized.split(',')[1] || '';
             try {
                 const data = await api.identifyDrink(base64Data, file.type);
                 setResult(data);
@@ -657,7 +697,7 @@ function ScanView({ onSuccess }: { onSuccess: () => void }) {
                 let croppedUrl = null;
                 if (data.thumb_bbox) {
                     try {
-                        croppedUrl = await cropImage(base64, data.thumb_bbox);
+                        croppedUrl = await cropImage(optimized, data.thumb_bbox);
                     } catch (cropErr) {
                         console.error("Crop failed:", cropErr);
                     }

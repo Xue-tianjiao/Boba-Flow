@@ -11,6 +11,16 @@ async function readJsonResponse(res: Response): Promise<any> {
   }
 }
 
+async function fetchJson(input: RequestInfo | URL, init?: RequestInit): Promise<{ ok: boolean; status: number; data: any }> {
+  try {
+    const res = await fetch(input, init);
+    const data = await readJsonResponse(res);
+    return { ok: res.ok, status: res.status, data };
+  } catch (e: any) {
+    return { ok: false, status: 0, data: { error: e?.message ? String(e.message) : 'Network error' } };
+  }
+}
+
 async function tryFetchJson(input: RequestInfo | URL, init?: RequestInit): Promise<{ ok: boolean; status: number; data: any | null }>{
   try {
     const res = await fetch(input, init);
@@ -34,12 +44,13 @@ export const api = {
 
   // Identify uploaded drink image
   identifyDrink: async (imageBase64: string, mimeType?: string) => {
-    const res = await fetch('/api/identify', {
+    const { ok, data } = await fetchJson('/api/identify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64, mimeType }),
+      body: JSON.stringify({ imageBase64, mimeType })
     });
-    return await res.json();
+    if (ok) return data;
+    return { error: data?.error || 'Service unavailable' };
   },
 
   // Inspiration (Today page)
@@ -62,12 +73,13 @@ export const api = {
   },
 
   assistantChat: async (messages: Array<{ role: 'user' | 'assistant'; content: string }>) => {
-    const res = await fetch('/api/assistant/chat', {
+    const { ok, data } = await fetchJson('/api/assistant/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages })
     });
-    return await res.json();
+    if (ok) return data;
+    return { error: data?.error || 'Service unavailable' };
   },
 
   exploreInspirationStream: async (params: {
@@ -328,11 +340,12 @@ export const api = {
   },
 
   uploadDataUrlImage: async (data: { dataUrl: string; key: string; userId?: string }) => {
-    const res = await fetch('/api/uploads/data-url', {
+    const { ok, data: resData } = await fetchJson('/api/uploads/data-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dataUrl: data.dataUrl, key: data.key, userId: data.userId || 'guest' })
     });
-    return await res.json();
+    if (ok) return resData;
+    return { error: resData?.error || 'Service unavailable' };
   }
 };
