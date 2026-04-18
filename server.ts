@@ -1305,7 +1305,7 @@ async function startServer() {
             res.write(': keep-alive\n\n');
           } catch {
           }
-        }, 15000);
+        }, 5000);
 
         const abortController = new AbortController();
         const closeHandler = () => abortController.abort();
@@ -1322,7 +1322,7 @@ async function startServer() {
           } catch {
           }
         };
-        const flushTimer = setInterval(flush, 60);
+        const flushTimer = setInterval(flush, 80);
         try {
           res.write(`event: open\ndata: ${JSON.stringify({ ok: true })}\n\n`);
           fullReply = await arkGenerateChatTextStreamLocal({

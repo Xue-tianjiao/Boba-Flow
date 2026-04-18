@@ -32,7 +32,7 @@ export function stripSimpleMarkdown(value: string): string {
 async function arkPostJson<T>(pathname: string, body: any): Promise<T> {
   const url = `${stripBackticksAndTrim(arkBaseUrl)}${pathname.startsWith('/') ? '' : '/'}${pathname}`;
   const controller = new AbortController();
-  const timeoutMs = Number(process.env.ARK_TIMEOUT_MS || 20_000);
+  const timeoutMs = Number(process.env.ARK_TIMEOUT_MS || 55_000);
   const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 20_000);
   const res = await fetch(url, {
     method: 'POST',
@@ -176,8 +176,8 @@ export async function arkGenerateChatTextStream(params: {
   for (const m of cleaned) chatMessages.push({ role: m.role, content: m.content });
 
   const controller = new AbortController();
-  const timeoutMs = Number(process.env.ARK_TIMEOUT_MS || 35_000);
-  const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 35_000);
+  const timeoutMs = Number(process.env.ARK_TIMEOUT_MS || 55_000);
+  const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 55_000);
   const abortHandler = () => controller.abort();
   signal?.addEventListener?.('abort', abortHandler, { once: true } as any);
 

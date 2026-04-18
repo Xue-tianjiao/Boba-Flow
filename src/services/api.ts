@@ -94,6 +94,8 @@ export const api = {
     const decoder = new TextDecoder();
     let buffer = '';
 
+    let sawDone = false;
+
     const handleFrame = (frame: string) => {
       const lines = frame.split('\n');
       let event = 'message';
@@ -106,7 +108,11 @@ export const api = {
       try {
         const parsed = JSON.parse(data);
         if (event === 'delta') params.onDelta(String(parsed?.delta || ''));
-        else if (event === 'done') params.onDone({ reply: String(parsed?.reply || '') });
+        else if (event === 'done') {
+          sawDone = true;
+          params.onDone({ reply: String(parsed?.reply || '') });
+          return 'done' as const;
+        }
         else if (event === 'error') params.onError?.(parsed);
       } catch (e) {
         params.onError?.({ error: 'Invalid stream payload', detail: String(e) });
@@ -119,7 +125,20 @@ export const api = {
       buffer += decoder.decode(value, { stream: true });
       const parts = buffer.split('\n\n');
       buffer = parts.pop() || '';
-      for (const frame of parts) handleFrame(frame);
+      for (const frame of parts) {
+        const r = handleFrame(frame);
+        if (r === 'done') {
+          try {
+            await reader.cancel();
+          } catch {
+          }
+          return;
+        }
+      }
+    }
+
+    if (!sawDone) {
+      throw new Error('Stream ended unexpectedly');
     }
   },
 
