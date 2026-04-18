@@ -370,15 +370,50 @@ function HomeView() {
     if (!text || assistantSending) return;
     setAssistantSending(true);
     const next = [...assistantMessages, { role: 'user', content: text } as const];
-    setAssistantMessages(next);
+    const placeholderIndex = next.length;
+    setAssistantMessages([...next, { role: 'assistant', content: '' } as const]);
     setAssistantInput('');
     try {
-      const data = await api.assistantChat(next);
-      const reply = typeof data?.reply === 'string' ? data.reply : '';
-      setAssistantMessages((prev) => [...prev, { role: 'assistant', content: reply || '我这边没拿到回复，要不你换个问法试试？' }]);
+      await api.assistantChatStream({
+        messages: next,
+        onDelta: (delta) => {
+          if (!delta) return;
+          setAssistantMessages((prev) => {
+            const copy = prev.slice();
+            const target = copy[placeholderIndex];
+            if (!target || target.role !== 'assistant') return prev;
+            copy[placeholderIndex] = { role: 'assistant', content: `${target.content || ''}${delta}` } as const;
+            return copy;
+          });
+        },
+        onDone: ({ reply }) => {
+          setAssistantMessages((prev) => {
+            const copy = prev.slice();
+            const target = copy[placeholderIndex];
+            if (!target || target.role !== 'assistant') return prev;
+            copy[placeholderIndex] = { role: 'assistant', content: reply || target.content || '我这边没拿到回复，要不你换个问法试试？' } as const;
+            return copy;
+          });
+        },
+        onError: () => {
+          setAssistantMessages((prev) => {
+            const copy = prev.slice();
+            const target = copy[placeholderIndex];
+            if (!target || target.role !== 'assistant') return prev;
+            copy[placeholderIndex] = { role: 'assistant', content: target.content || '对话请求失败了，稍后再试试。' } as const;
+            return copy;
+          });
+        }
+      });
     } catch (e) {
       console.error(e);
-      setAssistantMessages((prev) => [...prev, { role: 'assistant', content: '对话请求失败了，稍后再试试。' }]);
+      setAssistantMessages((prev) => {
+        const copy = prev.slice();
+        const target = copy[placeholderIndex];
+        if (!target || target.role !== 'assistant') return [...prev, { role: 'assistant', content: '对话请求失败了，稍后再试试。' } as const];
+        copy[placeholderIndex] = { role: 'assistant', content: target.content || '对话请求失败了，稍后再试试。' } as const;
+        return copy;
+      });
     } finally {
       setAssistantSending(false);
     }

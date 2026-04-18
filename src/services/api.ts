@@ -1,4 +1,6 @@
 // Frontend API service
+import { addLocalLog, deleteLocalLog, getLocalLogs, updateLocalLog } from './localLogs';
+
 async function readJsonResponse(res: Response): Promise<any> {
   const text = await res.text();
   if (!text) return null;
@@ -6,6 +8,16 @@ async function readJsonResponse(res: Response): Promise<any> {
     return JSON.parse(text);
   } catch {
     return { error: text };
+  }
+}
+
+async function tryFetchJson(input: RequestInfo | URL, init?: RequestInit): Promise<{ ok: boolean; status: number; data: any | null }>{
+  try {
+    const res = await fetch(input, init);
+    const data = await readJsonResponse(res);
+    return { ok: res.ok, status: res.status, data };
+  } catch (e: any) {
+    return { ok: false, status: 0, data: { error: e?.message ? String(e.message) : 'Network error' } };
   }
 }
 
@@ -56,6 +68,59 @@ export const api = {
       body: JSON.stringify({ messages }),
     });
     return await res.json();
+  },
+
+  assistantChatStream: async (params: {
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+    signal?: AbortSignal;
+    onDelta: (delta: string) => void;
+    onDone: (final: { reply: string }) => void;
+    onError?: (err: any) => void;
+  }) => {
+    const res = await fetch('/api/assistant/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify({ messages: params.messages, stream: true }),
+      signal: params.signal
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(text || String(res.status));
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error('ReadableStream not supported');
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const handleFrame = (frame: string) => {
+      const lines = frame.split('\n');
+      let event = 'message';
+      let data = '';
+      for (const line of lines) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        if (line.startsWith('data:')) data += line.slice(5).trim();
+      }
+      if (!data) return;
+      try {
+        const parsed = JSON.parse(data);
+        if (event === 'delta') params.onDelta(String(parsed?.delta || ''));
+        else if (event === 'done') params.onDone({ reply: String(parsed?.reply || '') });
+        else if (event === 'error') params.onError?.(parsed);
+      } catch (e) {
+        params.onError?.({ error: 'Invalid stream payload', detail: String(e) });
+      }
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      for (const frame of parts) handleFrame(frame);
+    }
   },
 
   exploreInspirationStream: async (params: {
@@ -170,43 +235,39 @@ export const api = {
 
   // Get drink logs
   getLogs: async () => {
-    const res = await fetch('/api/logs');
-    const data = await readJsonResponse(res);
-    return data ?? [];
+    const { ok, data } = await tryFetchJson('/api/logs');
+    if (ok && Array.isArray(data)) return data;
+    return getLocalLogs('guest');
   },
 
   // Add a new drink log
   addLog: async (log: any) => {
-    const res = await fetch('/api/logs', {
+    const { ok, data } = await tryFetchJson('/api/logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(log),
+      body: JSON.stringify(log)
     });
-    const data = await readJsonResponse(res);
-    return data ?? {};
+
+    if (ok && data && !data?.error) return data;
+    return addLocalLog(log);
   },
 
   // Update a drink log
   updateLog: async (id: number, log: any) => {
-    const res = await fetch(`/api/logs/${id}`, {
+    const { ok, data } = await tryFetchJson(`/api/logs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(log),
+      body: JSON.stringify(log)
     });
-    const data = await readJsonResponse(res);
-    return data ?? {};
+    if (ok && data && !data?.error) return data;
+    return updateLocalLog(id, log);
   },
 
   // Delete a drink log
   deleteLog: async (id: number) => {
-    const res = await fetch(`/api/logs/${id}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) {
-        throw new Error('Failed to delete log');
-    }
-    const data = await readJsonResponse(res);
-    return data ?? {};
+    const { ok, data } = await tryFetchJson(`/api/logs/${id}`, { method: 'DELETE' });
+    if (ok && data && !data?.error) return data;
+    return deleteLocalLog(id);
   },
 
   // Onboarding

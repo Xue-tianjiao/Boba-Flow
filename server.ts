@@ -707,6 +707,19 @@ async function startServer() {
 
   // --- API Routes ---
 
+  app.get('/api/health', (_req, res) => {
+    res.json({
+      ok: true,
+      hasArkKey: hasValidArkKey,
+      hasSupabaseUrl: Boolean(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL),
+      hasSupabaseServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+      hasArkBaseUrl: Boolean(process.env.ARK_BASE_URL),
+      hasModelText: Boolean(process.env.ARK_MODEL_TEXT),
+      hasModelVision: Boolean(process.env.ARK_MODEL_VISION),
+      hasModelImage: Boolean(process.env.ARK_MODEL_IMAGE)
+    });
+  });
+
   app.get('/api/ads/pictures', (_req, res) => {
     try {
       const candidates = [
@@ -1166,51 +1179,184 @@ async function startServer() {
       const rawMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
       const messages = rawMessages
         .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-        .slice(-12)
+        .slice(-8)
         .map((m: any) => ({ role: m.role, content: String(m.content).slice(0, 1200) }));
 
+      const wantsStream = req.body?.stream === true || String(req.headers?.accept || '').includes('text/event-stream');
+
       if (!hasValidArkKey) {
+        if (wantsStream) {
+          res.status(200);
+          res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-cache, no-transform');
+          res.setHeader('Connection', 'keep-alive');
+          res.setHeader('X-Accel-Buffering', 'no');
+          if (typeof (res as any).flushHeaders === 'function') (res as any).flushHeaders();
+          res.write(`event: error\ndata: ${JSON.stringify({ error: 'Missing ARK_API_KEY/DOUBAO_API_KEY' })}\n\n`);
+          res.write(`event: done\ndata: ${JSON.stringify({ reply: '未配置 DOUBAO/ARK Key，暂时无法使用 AI 对话。请先在 .env.local 配置 ARK_API_KEY/DOUBAO_API_KEY。' })}\n\n`);
+          res.end();
+          return;
+        }
         return res.json({ reply: '未配置 DOUBAO/ARK Key，暂时无法使用 AI 对话。请先在 .env.local 配置 ARK_API_KEY/DOUBAO_API_KEY。' });
       }
 
-      const system = `一、核心身份与定位
-你是专业级AI饮品服务助手，核心定位为「饮品领域专精+通用问答兼容」的复合型智能助手：既要在饮品相关需求中做到极致专业、精准、实用，也要具备常规AI助手的全场景通用问答能力，不局限于单一领域，兼顾专业性与通用性，响应所有合规合理的用户提问。
+      const system = ['你是饮品领域专业助手，也能回答通用问题。', '输出纯文本，不要 Markdown。', '做推荐时：给 3 个推荐（品牌+饮品名+一句理由），再问 1-2 个澄清问题。'].join('\n');
 
-二、核心职能划分
-（一）核心专精职能：饮品专属服务（优先响应，深度专业）
-针对用户的饮品相关需求，严格按照以下标准执行，聚焦新式茶饮、咖啡、潮流特饮三大核心品类，重点覆盖奶茶、果茶、鲜萃咖啡、拿铁、特调咖啡、小众特色饮品等主流品类。
+      const lastUserText = String(messages.slice().reverse().find((m: any) => m?.role === 'user')?.content || '');
+      const needsFreshInfo = /\b(latest|news|update)\b/i.test(lastUserText) || /最新|最近|上新|新品|新闻|更新|链接|出处|来源|官网|价格|搜|搜索|查/.test(lastUserText);
+      const tools = needsFreshInfo ? [{ type: 'web_search' }] : undefined;
 
-1) 新品精准检索与推送：优先用 web_search 聚焦近 1-3 个月内国内主流连锁品牌/小众网红/区域特色品牌的新上新饮品。排除旧款复刻、常规改版的非新品；按品类、品牌、上市时间分类；标注核心亮点、口感特质、上市渠道；杜绝过时信息、虚假新品信息。
-2) 饮品参数精准输出：当用户询问具体饮品时，尽量输出糖分档位（无糖/三分/五分/七分/全糖，若品牌支持请区分蔗糖/代糖/果糖等）、可选冰度/温度、热量参考、配料构成、口感风味；参数尽量贴合品牌官方或可靠来源。无法确认的参数必须明确说明“不确定/需以门店/官方为准”，禁止主观臆造。控糖/减脂需求需额外给低糖/无糖适配方案。
-3) 个性化推荐服务：结合口味偏好、饮用场景、人群需求给针对性推荐；推荐逻辑清晰，每款附简短理由，兼顾热门款与小众宝藏款，避免单一化。
-4) 饮品相关答疑：解答点单技巧、踩雷避坑、搭配建议、品牌特色、制作原理等；语言通俗易懂但保持专业。
+      const arkGenerateChatTextStreamLocal = async (params: {
+        model: string;
+        system?: string;
+        messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+        tools?: any[];
+        signal?: AbortSignal;
+        onDelta: (delta: string) => void;
+      }) => {
+        const controller = new AbortController();
+        const timeoutMs = Number(process.env.ARK_TIMEOUT_MS || 35_000);
+        const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 35_000);
+        const abortHandler = () => controller.abort();
+        params.signal?.addEventListener?.('abort', abortHandler, { once: true } as any);
 
-（二）通用兼容职能：全领域常规问答
-对于非饮品领域的用户提问，按通用AI助手标准回应：准确、友好、条理清晰，不推诿、不刻意局限领域；饮品相关问题自动切换为专精模式。
+        const url = `${stripBackticksAndTrim(process.env.ARK_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3').replace(/\/$/, '')}/chat/completions`;
+        const apiKey = process.env.ARK_API_KEY || process.env.DOUBAO_API_KEY || '';
 
-三、整体回答准则与规范
-1) 信息真实性原则：饮品相关信息严禁编造；新品/参数/品牌信息优先以官方发布或可靠来源为准；不确定必须明确告知。
-2) 输出条理原则：推荐/参数类内容优先分点或分类输出，重点信息简洁突出。
-3) 语气适配原则：饮品场景亲切专业，通用问答中立友好；全程合规。
-4) 优先级原则：若用户同时提出饮品问题+通用问题，先完整解答饮品，再回应通用，不遗漏。
+        const chatMessages: any[] = [];
+        if (params.system) chatMessages.push({ role: 'system', content: params.system });
+        for (const m of params.messages) chatMessages.push({ role: m.role, content: m.content });
 
-四、禁用行为
-严禁编造虚假饮品信息、夸大饮品功效、推荐违规饮品；严禁推诿通用问题、拒绝合理问答；不输出违规、低俗、误导性内容。
+        const resUp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({ model: params.model, messages: chatMessages, tools: params.tools, stream: true }),
+          signal: controller.signal
+        }).finally(() => {
+          clearTimeout(timer);
+          params.signal?.removeEventListener?.('abort', abortHandler as any);
+        });
 
-输出格式偏好（饮品场景）：
-- 先给 3 个可点到的推荐（品牌 + 饮品名 + 1 句理由）
-- 再给 1-2 个追问以补全偏好
-- 若涉及新品/联名/活动等时效信息，优先用 web_search 核实；不要贴大段链接，可给 1-2 个关键来源域名/标题提示即可。`;
+        if (!resUp.ok) {
+          const text = await resUp.text().catch(() => '');
+          throw new Error(text || `Ark API request failed (${resUp.status})`);
+        }
 
-      const outputRule = '重要：输出必须是纯文本，不要使用 Markdown 符号或格式（例如不要出现 ###、**、__、```）。';
+        const reader = resUp.body?.getReader();
+        if (!reader) throw new Error('ReadableStream not supported');
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let full = '';
+
+        const handleFrame = (frame: string) => {
+          const lines = frame.split('\n');
+          for (const line of lines) {
+            if (!line.startsWith('data:')) continue;
+            const data = line.slice(5).trim();
+            if (!data) continue;
+            if (data === '[DONE]') return 'done' as const;
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed?.choices?.[0]?.delta?.content;
+              if (typeof delta === 'string' && delta) {
+                full += delta;
+                params.onDelta(delta);
+              }
+            } catch {
+            }
+          }
+          return null;
+        };
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop() || '';
+          for (const frame of parts) {
+            const r = handleFrame(frame);
+            if (r === 'done') {
+              try {
+                await reader.cancel();
+              } catch {
+              }
+              return full;
+            }
+          }
+        }
+
+        return full;
+      };
+
+      if (wantsStream) {
+        res.status(200);
+        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        if (typeof (res as any).flushHeaders === 'function') (res as any).flushHeaders();
+
+        const heartbeat = setInterval(() => {
+          try {
+            res.write(': keep-alive\n\n');
+          } catch {
+          }
+        }, 15000);
+
+        const abortController = new AbortController();
+        const closeHandler = () => abortController.abort();
+        res.on('close', closeHandler);
+
+        let fullReply = '';
+        let pending = '';
+        const flush = () => {
+          if (!pending) return;
+          const chunk = pending;
+          pending = '';
+          try {
+            res.write(`event: delta\ndata: ${JSON.stringify({ delta: chunk })}\n\n`);
+          } catch {
+          }
+        };
+        const flushTimer = setInterval(flush, 60);
+        try {
+          res.write(`event: open\ndata: ${JSON.stringify({ ok: true })}\n\n`);
+          fullReply = await arkGenerateChatTextStreamLocal({
+            model: arkModelText,
+            system,
+            messages: messages.length ? messages : [{ role: 'user', content: '帮我推荐今天适合喝的饮品。' }],
+            tools,
+            signal: abortController.signal,
+            onDelta: (delta) => {
+              pending += delta;
+            }
+          });
+        } catch (e: any) {
+          const message = e?.message ? String(e.message) : 'Stream failed';
+          res.write(`event: error\ndata: ${JSON.stringify({ error: message })}\n\n`);
+        } finally {
+          clearInterval(flushTimer);
+          flush();
+          clearInterval(heartbeat);
+          res.off('close', closeHandler);
+        }
+
+        res.write(`event: done\ndata: ${JSON.stringify({ reply: stripSimpleMarkdown(stripBackticksAndTrim(fullReply)) })}\n\n`);
+        res.end();
+        return;
+      }
 
       let reply = '';
       try {
         reply = await arkGenerateChatText({
           model: arkModelText,
-          system: `${system}\n\n${outputRule}`,
+          system,
           messages: messages.length ? messages : [{ role: 'user', content: '帮我推荐今天适合喝的饮品。' }],
-          tools: [{ type: 'web_search' }]
+          tools
         });
       } catch {
         const fallback =

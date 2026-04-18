@@ -1,4 +1,4 @@
-import { arkGenerateChatText, arkModelText, hasValidArkKey, json, readBody, stripBackticksAndTrim, stripSimpleMarkdown } from '../../lib/ark.js';
+import { arkGenerateChatText, arkGenerateChatTextStream, arkModelText, hasValidArkKey, json, readBody, stripBackticksAndTrim, stripSimpleMarkdown } from '../../lib/ark.js';
 
 export default async function handler(req: any, res: any) {
   try {
@@ -7,24 +7,102 @@ export default async function handler(req: any, res: any) {
     const rawMessages = Array.isArray(body?.messages) ? body.messages : [];
     const messages = rawMessages
       .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .slice(-12)
+      .slice(-8)
       .map((m: any) => ({ role: m.role, content: String(m.content).slice(0, 1200) }));
 
     if (!hasValidArkKey) {
+      const wantsSse =
+        String(req?.headers?.accept || '').includes('text/event-stream') ||
+        body?.stream === true;
+      if (wantsSse) {
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders?.();
+        res.write(`event: error\ndata: ${JSON.stringify({ error: 'Missing ARK_API_KEY/DOUBAO_API_KEY' })}\n\n`);
+        res.write(`event: done\ndata: ${JSON.stringify({ reply: '未配置 DOUBAO/ARK Key，暂时无法使用 AI 对话。请在部署平台的环境变量里配置 ARK_API_KEY/DOUBAO_API_KEY。' })}\n\n`);
+        res.end();
+        return;
+      }
+
       return json(res, { reply: '未配置 DOUBAO/ARK Key，暂时无法使用 AI 对话。请在部署平台的环境变量里配置 ARK_API_KEY/DOUBAO_API_KEY。' });
     }
 
     const system = [
-      '一、核心身份与定位',
-      '你是专业级AI饮品服务助手，核心定位为「饮品领域专精+通用问答兼容」的复合型智能助手：既要在饮品相关需求中做到极致专业、精准、实用，也要具备常规AI助手的全场景通用问答能力。',
-      '',
-      '二、核心职能划分',
-      '饮品相关问题优先，尽量用可靠信息源或 web_search 核实；非饮品问题按通用助手标准回答。',
-      '',
-      '三、输出规范',
-      '输出必须是纯文本，不要使用 Markdown 符号或格式（例如标题符号、加粗符号、代码块符号等）。',
-      '饮品推荐时：先给 3 个可点到的推荐（品牌+饮品名+一句理由），再给 1-2 个追问。'
+      '你是饮品领域专业助手，也能回答通用问题。',
+      '输出纯文本，不要 Markdown。',
+      '做推荐时：给 3 个推荐（品牌+饮品名+一句理由），再问 1-2 个澄清问题。'
     ].join('\n');
+
+    const lastUserText = String(messages.slice().reverse().find((m: any) => m?.role === 'user')?.content || '');
+    const needsFreshInfo = /\b(latest|news|update)\b/i.test(lastUserText) || /最新|最近|上新|新品|新闻|更新|链接|出处|来源|官网|价格|搜|搜索|查/.test(lastUserText);
+    const tools = needsFreshInfo ? [{ type: 'web_search' }] : undefined;
+
+    const wantsSse =
+      String(req?.headers?.accept || '').includes('text/event-stream') ||
+      body?.stream === true;
+
+    if (wantsSse) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders?.();
+
+      const heartbeat = setInterval(() => {
+        try {
+          res.write(': keep-alive\n\n');
+        } catch {
+        }
+      }, 15000);
+
+      const abortController = new AbortController();
+      const closeHandler = () => abortController.abort();
+      res.on?.('close', closeHandler);
+
+      let fullReply = '';
+      let pending = '';
+      const flush = () => {
+        if (!pending) return;
+        const chunk = pending;
+        pending = '';
+        try {
+          res.write(`event: delta\ndata: ${JSON.stringify({ delta: chunk })}\n\n`);
+        } catch {
+        }
+      };
+      const flushTimer = setInterval(flush, 60);
+      try {
+        res.write(`event: open\ndata: ${JSON.stringify({ ok: true })}\n\n`);
+
+        fullReply = await arkGenerateChatTextStream({
+          model: arkModelText,
+          system,
+          messages: messages.length ? messages : [{ role: 'user', content: '帮我推荐今天适合喝的饮品。' }],
+          tools,
+          signal: abortController.signal,
+          onDelta: (delta) => {
+            pending += delta;
+          }
+        });
+      } catch (e: any) {
+        const message = e?.message ? String(e.message) : 'Stream failed';
+        res.write(`event: error\ndata: ${JSON.stringify({ error: message })}\n\n`);
+      } finally {
+        clearInterval(flushTimer);
+        flush();
+        clearInterval(heartbeat);
+        res.off?.('close', closeHandler);
+      }
+
+      const cleaned = stripSimpleMarkdown(stripBackticksAndTrim(fullReply));
+      res.write(`event: done\ndata: ${JSON.stringify({ reply: cleaned })}\n\n`);
+      res.end();
+      return;
+    }
 
     let reply = '';
     try {
@@ -32,7 +110,7 @@ export default async function handler(req: any, res: any) {
         model: arkModelText,
         system,
         messages: messages.length ? messages : [{ role: 'user', content: '帮我推荐今天适合喝的饮品。' }],
-        tools: [{ type: 'web_search' }]
+        tools
       });
     } catch {
       reply =
