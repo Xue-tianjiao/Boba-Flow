@@ -1,10 +1,16 @@
 {
   "urls": [
     "/explore/picture/test-1.png",
+    "/explore/picture/test-10.png",
+    "/explore/picture/test-11.png",
+    "/explore/picture/test-12.png",
     "/explore/picture/test-2.png",
     "/explore/picture/test-3.png",
     "/explore/picture/test-4.png",
     "/explore/picture/test-5.png",
-    "/explore/picture/test-6.png"
+    "/explore/picture/test-6.png",
+    "/explore/picture/test-7.png",
+    "/explore/picture/test-8.png",
+    "/explore/picture/test-9.png"
   ]
 }

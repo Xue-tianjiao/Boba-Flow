@@ -32,7 +32,7 @@ export function stripSimpleMarkdown(value: string): string {
 async function arkPostJson<T>(pathname: string, body: any): Promise<T> {
   const url = `${stripBackticksAndTrim(arkBaseUrl)}${pathname.startsWith('/') ? '' : '/'}${pathname}`;
   const controller = new AbortController();
-  const timeoutMs = Number(process.env.ARK_TIMEOUT_MS || 55_000);
+  const timeoutMs = Number(process.env.ARK_TIMEOUT_MS || 20_000);
   const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 20_000);
   const res = await fetch(url, {
     method: 'POST',
@@ -155,103 +155,6 @@ export async function arkGenerateChatText(params: {
   for (const m of cleaned) chatMessages.push({ role: m.role, content: m.content });
   const payload = await arkPostJson<any>('/chat/completions', { model, messages: chatMessages, tools });
   return extractTextFromArkPayload(payload);
-}
-
-export async function arkGenerateChatTextStream(params: {
-  model: string;
-  system?: string;
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
-  tools?: any[];
-  signal?: AbortSignal;
-  onDelta: (delta: string) => void;
-}): Promise<string> {
-  const { model, system, messages, tools, signal, onDelta } = params;
-  const cleaned = messages
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-    .slice(-8)
-    .map((m) => ({ role: m.role, content: String(m.content).slice(0, 1200) }));
-
-  const chatMessages: any[] = [];
-  if (system) chatMessages.push({ role: 'system', content: system });
-  for (const m of cleaned) chatMessages.push({ role: m.role, content: m.content });
-
-  const controller = new AbortController();
-  const timeoutMs = Number(process.env.ARK_TIMEOUT_MS || 55_000);
-  const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 55_000);
-  const abortHandler = () => controller.abort();
-  signal?.addEventListener?.('abort', abortHandler, { once: true } as any);
-
-  const url = `${stripBackticksAndTrim(arkBaseUrl)}/chat/completions`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${arkApiKeyRaw}`
-    },
-    body: JSON.stringify({ model, messages: chatMessages, tools, stream: true }),
-    signal: controller.signal
-  }).finally(() => {
-    clearTimeout(timer);
-    signal?.removeEventListener?.('abort', abortHandler as any);
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    let json: any;
-    try {
-      json = text ? JSON.parse(text) : {};
-    } catch {
-      json = { raw: text };
-    }
-    const message = json?.error?.message || json?.message || `Ark API request failed (${res.status})`;
-    throw new Error(message);
-  }
-
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error('ReadableStream not supported');
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let full = '';
-
-  const handleFrame = (frame: string) => {
-    const lines = frame.split('\n');
-    for (const line of lines) {
-      if (!line.startsWith('data:')) continue;
-      const data = line.slice(5).trim();
-      if (!data) continue;
-      if (data === '[DONE]') return 'done' as const;
-      try {
-        const parsed = JSON.parse(data);
-        const delta = parsed?.choices?.[0]?.delta?.content;
-        if (typeof delta === 'string' && delta) {
-          full += delta;
-          onDelta(delta);
-        }
-      } catch {
-      }
-    }
-    return null;
-  };
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split('\n\n');
-    buffer = parts.pop() || '';
-    for (const frame of parts) {
-      const r = handleFrame(frame);
-      if (r === 'done') {
-        try {
-          await reader.cancel();
-        } catch {
-        }
-        return full;
-      }
-    }
-  }
-
-  return full;
 }
 
 export function json(res: any, data: any, status = 200) {
