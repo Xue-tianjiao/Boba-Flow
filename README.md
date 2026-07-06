@@ -1,41 +1,191 @@
-# Drink Scanner App (智能饮品识图与发现)
+# 🧋 BobaFlow
 
-This is a full-stack web application for smart drink recognition and discovery, powered by Gemini 3 Flash and DeepSeek.
+> **AI Native 饮品全链路产品** —— 构建「发现 + 记录 + 分享」的闭环体验
+>
+> 拍照即记录，对话即发现，一键即分享。让「找到下一杯好喝的」这件事，不再需要在 5 个 App 之间来回切换。
 
-## Features
-- **Smart Image Recognition**: Upload drink photos to identify brand, name, and details (sugar, ice).
-- **New Product Discovery**: Daily recommendations of new drink releases.
-- **Deep Search**: Semantic search for drinks with real-time web data and AI refinement.
-- **Footprint & Insights**: Track your drink history and visualize your preferences.
+---
 
-## Project Structure
-- `src/App.tsx`: Main frontend application with Apple-style UI.
-- `src/services/geminiService.ts`: AI service integration (Gemini + DeepSeek).
-- `server.ts`: Backend server (Express + SQLite + DeepSeek Proxy).
-- `vite.config.ts`: Vite configuration.
-- `package.json`: Dependencies and scripts.
+## 📖 产品简介
 
-## Setup & Run
+**BobaFlow** 是一款 AI Native 的饮品消费助手，围绕新式茶饮 + 咖啡场景，把用户「发现新品 → 记录体验 → 社交分享」的完整链路做成一个闭环：
 
-1.  **Install Dependencies**
-    ```bash
-    npm install
-    ```
+- **发现** —— AI 饮品助手对话 + 高质感新品卡片流，一站式获取全网新品信息
+- **记录** —— 拍照 / 订单截图「零输入」自动识别，沉淀成结构化饮品足迹
+- **分享** —— 一键生成高审美分享卡片，驱动社交裂变式增长
 
-2.  **Configure Environment Variables**
-    The `.env` file has been created. Please update `GEMINI_API_KEY` with your actual key.
-    ```env
-    GEMINI_API_KEY=your_gemini_api_key_here
-    DEEPSEEK_API_KEY=sk-d84f890f669540719da646f105ac63b9
-    ```
+## 💡 为什么做这个产品
 
-3.  **Start Development Server**
-    ```bash
-    npm run dev
-    ```
-    The app will be available at `http://localhost:3000`.
+> 从「行业 → 人群 → 场景 → 需求」推导产品机会。
 
-## Tech Stack
-- **Frontend**: React 19, Vite, Tailwind CSS, Lucide Icons, Recharts, Motion.
-- **Backend**: Node.js (Express), SQLite (Better-SQLite3).
-- **AI**: Gemini 3 Flash (Vision & Search), DeepSeek (Text Refinement).
+**行业（大盘）**：主市场是「茶饮 + 咖饮」的互联网服务。2025 年数据显示，75 个核心品牌年产 **2,691 款**新品，平均每周上新 **50+ 款**；核心客群（18–35 岁）中 **72.1%** 周均消费 3 次以上，饮品已从偶发奖励变为职场与社交的刚需补给。
+
+**人群**：18–35 岁的 Gen Z 大学生与都市职场白领。
+
+**核心痛点**：
+
+| 痛点 | 现状 |
+|------|------|
+| **信息获取艰难** | 新品更迭极快，用户要在多个饮品 App 间反复探索，路径长；小红书等综合平台覆盖不全，冷门信息缺失 |
+| **记录归档繁琐** | 想记录好喝的饮品，但手动输入甜度/冰度/品牌流程冗长；消费记录散落在美团、饿了么、各品牌小程序、社媒收藏夹，缺乏统一归口 |
+
+**产品目标**：以 **AI 饮品助手**兜底长尾需求、以**新品卡片**做沉浸式种草，构建从精准检索到深度体验的探索闭环；以 **Doubao-Seed-2.0-Pro** 多模态能力实现「零输入」自动记录；以精美**饮品卡片**为视觉载体，驱动社交裂变与低成本增长。
+
+## 🚀 核心功能
+
+### 「今日」页面 — 发现
+
+**1. AI 饮品助手对话**
+常驻悬浮入口，聚焦奶茶、果茶、咖啡等全品类，提供新品精准检索、成分参数（糖分/热量）标准化输出、个性化推荐与专业问答，兼容通用问答能力。
+> 技术架构：`Doubao-Seed-2.0-Pro` + Web Search 插件，保证检索结果的**实时性**与**准确度**。
+
+**2. 新品饮品卡片**
+实时呈现高质感饮品视觉卡片，「再探」驱动内容流无限刷新，「爱心」一键收藏至侧边栏「想喝」清单，完成从发现到收藏的闭环。
+> 技术架构：`Open Claw` 每周自动采集新品数据 → 同步至`飞书多维表格`（自动采集 + 人工补位）→ `Nano Banana Pro` 将非标素材转化为标准化视觉卡片 → 自动入库后端。
+
+**3. 广告位 / 运营位**
+中心化聚合各大品牌的活动词条与新品首发。无合作意向时用 AIGC 转化商家素材；有明确合作时打「官方」标并配活动跳转。可面向品牌方提供阶梯式定向推流报价，实现商业变现。
+> 技术架构：`Nano Banana Pro` 图像生成 / 编辑，支持跨终端广告位毫秒级尺寸自适应。
+
+### 「足迹」页面 — 记录
+
+**4. AI 智能识别与历史统计**
+支持实物拍摄或外卖订单截图，实现饮品信息的无感化采集，消除手动录入摩擦。
+> 技术架构：`Doubao-Seed-2.0-Pro`，同步进行视觉主体分割与 OCR 语义关联。
+> **输出矩阵**：① 视觉资产（自动裁剪饮品头像，统一记录美感）；② 数据信息（品牌、名称、规格、甜度、冰度、特殊风味）；③ 多维洞察（自动生成月度行为分析）。
+
+**5. 「安利」分享卡片**
+将结构化记录转化为高审美分享图（含品牌、饮品、用户评价、BobaFlow 专属标识），依托小红书、微信朋友圈等社媒自发传播，实现低成本增长。
+
+### 侧边栏 — 偏好资产聚合
+
+作为用户饮品偏好的资产聚合中心：
+- **「想喝」列表** —— 承接消费意愿，由新品卡片的「爱心」动作沉淀
+- **「推荐」列表** —— 承接社交偏好，由「一键分享」动作沉淀
+
+## 🏗 技术架构
+
+**新品卡片内容生产链路**（自动化视觉管线）：
+
+```
+  三方平台 / 官网 / 社媒
+          │
+          ▼
+  ┌───────────────┐   store   ┌──────────────────┐
+  │   Open Claw   │ ────────▶ │   飞书多维表格      │
+  │  每周自动采集    │           │ 品牌·名称·时间·图  │
+  └───────────────┘           └──────────────────┘
+                                       │ check（人工补位）
+                                       ▼
+                              ┌──────────────────┐   upload   ┌──────────────┐
+                              │ Nano Banana Pro  │ ─────────▶ │  后端存储层    │
+                              │  非标素材→标准卡片  │           │  → 前端卡片流  │
+                              └──────────────────┘           └──────────────┘
+```
+
+**AI 交互 & 识别链路**：
+
+```
+  用户对话 / 拍照 / 订单截图
+          │
+          ▼
+  ┌────────────────────────────┐
+  │    Doubao-Seed-2.0-Pro     │  ← 多模态理解
+  │  语义解析 · 视觉分割 · OCR    │  + Web Search 插件（实时联网）
+  └────────────────────────────┘
+          │
+          ▼
+  结构化结果 · 个性化推荐 · 自动记录
+```
+
+### 技术栈
+
+| 层 | 技术 |
+|----|------|
+| **前端** | React 19 · Vite · TypeScript · Tailwind CSS · Lucide Icons · Recharts · Motion |
+| **后端** | Node.js (Express) · SQLite (Better-SQLite3) |
+| **AI · 对话/识别** | Doubao-Seed-2.0-Pro（火山引擎方舟）+ Web Search 插件 |
+| **AI · 生图** | Nano Banana Pro |
+| **数据中台** | Open Claw（采集）· 飞书多维表格（存储/运营） |
+| **部署** | Vercel |
+
+> *备注：仓库内同时包含 `supabase/migrations`，如生产环境使用 Supabase，请相应调整后端一栏。*
+
+## 📁 项目结构
+
+```
+BobaFlow/
+├── src/
+│   ├── App.tsx                 # 主前端应用（Apple 风格 UI）
+│   └── services/               # AI 服务集成
+├── api/                        # Serverless API 路由
+├── lib/                        # 通用工具
+├── public/                     # 静态资源
+├── scripts/                    # 辅助脚本
+├── supabase/migrations/        # 数据库迁移
+├── server.ts                   # 后端（Express + SQLite）
+├── vite.config.ts              # Vite 配置
+├── vercel.json                 # Vercel 部署配置
+└── package.json
+```
+
+## ⚡ 快速开始
+
+### 1. 安装依赖
+
+```bash
+npm install
+```
+
+### 2. 配置环境变量
+
+在项目根目录创建 `.env` 文件，填入**你自己的** API Key：
+
+```env
+# 豆包 Doubao-Seed-2.0-Pro（火山引擎方舟 / Volcano Engine Ark）
+ARK_API_KEY=your_doubao_ark_api_key_here
+```
+
+> ⚠️ **切勿把 `.env` 或任何真实 API Key 提交到 Git。**
+> 请确认 `.env` 已写入 `.gitignore`。一旦 Key 被公开推送，应立即到火山引擎控制台**吊销并重新生成**。
+> *（变量名请与代码中实际读取的名称保持一致。）*
+
+### 3. 启动开发服务
+
+```bash
+npm run dev
+```
+
+应用将运行在 `http://localhost:3000`。
+
+## 🌐 部署
+
+项目已配置 Vercel 一键部署（含 `vercel.json`）。请在 Vercel 项目设置的 **Environment Variables** 中填入 API Key，**切勿硬编码进代码**。
+
+在线地址：**[bobaflow.vercel.app](https://bobaflow.vercel.app)**
+
+## 🗂 Change Log
+
+| 版本 | 日期 | 更新内容 |
+|------|------|----------|
+| v1.0 | 2026.03.07 | 上线四大功能：AI 搜饮品返回卡片 / 截图照片识别记录 / 一键分享卡片 / 广告运营位 |
+| v1.1 | 2026.03.20 | 新品卡片增加「new」标识（近 1 月内发布） |
+| v2.0 | 2026.03.23 | 「AI 搜饮品」升级为「AI 饮品助手对话」；新增 AIGC「新品饮品卡片」 |
+| v2.1 | 2026.03.24 | 新增「侧边栏」，沉淀「想喝」与「推荐」 |
+| v2.2 | 2026.03.26 | 修复上线 bug |
+| v2.3 | 2026.04.17 | 产品宣传视频制作 |
+
+## 🗺 Roadmap
+
+- [ ] 用户账号体系与云端同步
+- [ ] 社区化的饮品发现与分享
+- [ ] 更广的品牌与区域覆盖
+- [ ] 降低 AI 调用延迟，优化响应体验
+
+## 📄 License
+
+本项目基于 [MIT License](LICENSE) 开源。
+
+---
+
+<p align="center">Made with 🧋 by <a href="https://github.com/Xue-tianjiao">Xue-tianjiao</a></p>
