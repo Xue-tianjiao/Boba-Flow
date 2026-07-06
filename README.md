@@ -146,10 +146,6 @@ npm install
 ARK_API_KEY=your_doubao_ark_api_key_here
 ```
 
-> ⚠️ **切勿把 `.env` 或任何真实 API Key 提交到 Git。**
-> 请确认 `.env` 已写入 `.gitignore`。一旦 Key 被公开推送，应立即到火山引擎控制台**吊销并重新生成**。
-> *（变量名请与代码中实际读取的名称保持一致。）*
-
 ### 3. 启动开发服务
 
 ```bash
